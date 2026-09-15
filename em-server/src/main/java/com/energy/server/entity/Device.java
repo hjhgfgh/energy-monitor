@@ -14,10 +14,15 @@ import java.time.LocalDateTime;
 @TableName("device")
 public class Device {
 
-    @TableId(type = IdType.AUTO)
+    /**
+     * 主键即协议帧中的设备ID（如 1001），由接入方分配，不使用数据库自增。
+     * 因此这里用 {@link IdType#INPUT} 而非 {@code AUTO}——用 AUTO 会导致
+     * MyBatis-Plus 生成不含 id 的 INSERT，与协议设备ID 脱节。
+     */
+    @TableId(type = IdType.INPUT)
     private Long id;
 
-    /** 设备编码，与协议帧中的设备ID对应 */
+    /** 业务设备编码，如 METER-A-001 */
     private String deviceCode;
 
     private String name;

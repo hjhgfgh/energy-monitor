@@ -13,6 +13,7 @@ public class Result<T> {
     public static final int CODE_SUCCESS = 0;
     public static final int CODE_BUSINESS_ERROR = 1000;
     public static final int CODE_PARAM_ERROR = 1001;
+    public static final int CODE_NOT_FOUND = 4004;
     public static final int CODE_SERVER_ERROR = 5000;
 
     private int code;

@@ -123,8 +123,10 @@ public class PersistingDeviceDataProcessor implements DeviceDataProcessor {
                     deviceDataMapper.insert(data);
                 }
 
-                long total = persisted.addAndGet(batch.size());
-                if (total % 1000 < BATCH_SIZE) {
+                int batchCount = batch.size();
+                long total = persisted.addAndGet(batchCount);
+                // 仅当本次跨过千位阈值时打印；否则小批量场景下每条都会刷一行日志
+                if (total % 1000L < batchCount) {
                     log.info("已入库 {} 条设备数据（队列余 {}）", total, queue.size());
                 }
             } catch (InterruptedException e) {

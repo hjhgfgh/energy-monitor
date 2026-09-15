@@ -2,12 +2,15 @@ package com.energy.server.exception;
 
 import com.energy.server.dto.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.stream.Collectors;
 
@@ -25,6 +28,20 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 路由匹配失败：路径不存在，或路径变量不满足正则约束（如 {@code /api/devices/abc}）。
+     *
+     * <p><b>必须显式处理</b>，否则会被下面的兜底 {@code Exception} 分支捕获，
+     * 把「路径不存在」报成「服务器内部错误」——既误导前端排查方向，
+     * 也会让错误告警里塞满无意义的 5xx。
+     */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<Result<Void>> handleNotFound(NoHandlerFoundException e) {
+        log.warn("请求路径不存在: {} {}", e.getHttpMethod(), e.getRequestURL());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Result.fail(Result.CODE_NOT_FOUND, "请求路径不存在"));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusiness(BusinessException e) {

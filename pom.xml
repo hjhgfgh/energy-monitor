@@ -51,6 +51,16 @@
                 <version>${mybatis-plus.version}</version>
             </dependency>
 
+            <!--
+              MyBatis-Plus 3.5.9 起把 jsqlparser 相关能力（含分页插件 PaginationInnerInterceptor）
+              从 starter 中剥离到独立模块，必须显式引入，否则编译报「找不到符号」或分页静默失效。
+            -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
