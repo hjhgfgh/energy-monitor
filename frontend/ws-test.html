@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实时数据推送验证</title>
+    <style>
+        body {
+            font-family: -apple-system, "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f6f7;
+            color: #222;
+        }
+
+        h1 {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 0 0 16px;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #e3e3e3;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .status {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #bbb;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .dot.on {
+            background: #1d9e75;
+        }
+
+        .dot.off {
+            background: #e24b4a;
+        }
+
+        .metric {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .metric b {
+            color: #222;
+            font-weight: 500;
+        }
+
+        button {
+            padding: 6px 14px;
+            font-size: 13px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #f0f0f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            color: #666;
+            font-weight: 500;
+            background: #fafafa;
+        }
+
+        .alarm-row td {
+            background: #fcebeb;
+            color: #a32d2d;
+        }
+
+        #log {
+            height: 220px;
+            overflow-y: auto;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .log-alarm {
+            color: #a32d2d;
+        }
+    </style>
+</head>
+<body>
+
+<h1>智慧能源监控 · 实时推送验证</h1>
+
+<div class="panel">
+    <div class="status">
+        <span><span id="dot" class="dot off"></span><span id="connText">未连接</span></span>
+        <span class="metric">数据帧 <b id="dataCount">0</b></span>
+        <span class="metric">告警 <b id="alarmCount">0</b></span>
+        <span class="metric">最近更新 <b id="lastTime">-</b></span>
+        <button onclick="connect()">连接</button>
+        <button onclick="disconnect()">断开</button>
+    </div>
+</div>
+
+<div class="panel">
+    <table>
+        <thead>
+        <tr>
+            <th>设备ID</th>
+            <th>电压 V</th>
+            <th>电流 A</th>
+            <th>功率 W</th>
+            <th>采集时间</th>
+        </tr>
+        </thead>
+        <tbody id="latestBody">
+        <tr>
+            <td colspan="5" style="color:#999">等待数据...</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="panel">
+    <div style="font-size:13px;color:#666;margin-bottom:8px">消息日志</div>
+    <div id="log"></div>
+</div>
+
+<script>
+    var socket = null;
+    var dataCount = 0;
+    var alarmCount = 0;
+    var latest = {};
+
+    function connect() {
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+            appendLog('已在连接中，忽略重复请求');
+            return;
+        }
+        var url = 'ws://' + location.hostname + ':8080/ws/realtime';
+        socket = new WebSocket(url);
+
+        socket.onopen = function () {
+            setStatus(true);
+            appendLog('已连接 ' + url);
+        };
+
+        socket.onmessage = function (evt) {
+            var msg = JSON.parse(evt.data);
+            if (msg.type === 'alarm') {
+                alarmCount++;
+                document.getElementById('alarmCount').textContent = alarmCount;
+                appendLog('[告警] ' + (msg.data.content || JSON.stringify(msg.data)), true);
+            } else {
+                dataCount++;
+                document.getElementById('dataCount').textContent = dataCount;
+                latest[msg.data.deviceId] = msg.data;
+                renderLatest();
+                document.getElementById('lastTime').textContent = new Date(msg.timestamp).toLocaleTimeString();
+            }
+        };
+
+        socket.onclose = function () {
+            setStatus(false);
+            appendLog('连接已关闭');
+        };
+
+        socket.onerror = function () {
+            appendLog('连接出错，请确认服务端已启动');
+        };
+    }
+
+    function disconnect() {
+        if (socket) {
+            socket.close();
+            socket = null;
+        }
+    }
+
+    function setStatus(online) {
+        var dot = document.getElementById('dot');
+        dot.className = 'dot ' + (online ? 'on' : 'off');
+        document.getElementById('connText').textContent = online ? '已连接' : '未连接';
+    }
+
+    function renderLatest() {
+        var ids = Object.keys(latest).sort();
+        var body = document.getElementById('latestBody');
+        if (ids.length === 0) {
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < ids.length; i++) {
+            var d = latest[ids[i]];
+            html += '<tr>'
+                + '<td>' + d.deviceId + '</td>'
+                + '<td>' + d.voltage + '</td>'
+                + '<td>' + d.current + '</td>'
+                + '<td>' + d.power + '</td>'
+                + '<td>' + new Date(d.collectTime).toLocaleTimeString() + '</td>'
+                + '</tr>';
+        }
+        body.innerHTML = html;
+    }
+
+    function appendLog(text, isAlarm) {
+        var log = document.getElementById('log');
+        var line = document.createElement('div');
+        if (isAlarm) {
+            line.className = 'log-alarm';
+        }
+        line.textContent = new Date().toLocaleTimeString() + '  ' + text;
+        log.insertBefore(line, log.firstChild);
+        while (log.childNodes.length > 200) {
+            log.removeChild(log.lastChild);
+        }
+    }
+
+    connect();
+</script>
+
+</body>
+</html>

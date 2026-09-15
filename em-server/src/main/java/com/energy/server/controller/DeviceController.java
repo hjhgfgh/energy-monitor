@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 设备查询接口。
@@ -32,6 +34,21 @@ public class DeviceController {
     @GetMapping
     public Result<List<Device>> list() {
         return Result.ok(deviceService.listDevices());
+    }
+
+    /**
+     * 缓存命中统计。
+     *
+     * <p>暴露这个接口是为了让「缓存有没有真的起作用」可被验证——
+     * 否则加了缓存也只有靠猜，命中率无法量化验证。
+     */
+    @GetMapping("/cache-stats")
+    public Result<Map<String, Object>> cacheStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("hits", deviceService.getCacheHits());
+        stats.put("misses", deviceService.getCacheMisses());
+        stats.put("hitRate", deviceService.cacheHitRate());
+        return Result.ok(stats);
     }
 
     /** 各设备最新一条数据（大屏概览卡片） */

@@ -2,6 +2,7 @@ package com.energy.server.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.energy.server.entity.DeviceData;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -12,6 +13,32 @@ import java.util.List;
  * 设备数据 Mapper。
  */
 public interface DeviceDataMapper extends BaseMapper<DeviceData> {
+
+    /**
+     * 批量插入，命中唯一键时更新。
+     *
+     * <p>两个作用合一：
+     * <ul>
+     *   <li><b>性能</b>：一条 SQL 插入整批（默认每批 500 条），相比逐条 insert，
+     *       网络往返与事务开销从 N 次降为 1 次。</li>
+     *   <li><b>幂等</b>：Kafka 至少一次语义下必然出现重复消费。
+     *       依赖 {@code uk_device_time} 唯一索引，重复消息不会产生重复行。</li>
+     * </ul>
+     */
+    @Insert("""
+            <script>
+            INSERT INTO device_data (device_id, voltage, electric_current, power, collect_time)
+            VALUES
+            <foreach collection="list" item="item" separator=",">
+                (#{item.deviceId}, #{item.voltage}, #{item.electricCurrent}, #{item.power}, #{item.collectTime})
+            </foreach>
+            ON DUPLICATE KEY UPDATE
+                voltage          = VALUES(voltage),
+                electric_current = VALUES(electric_current),
+                power            = VALUES(power)
+            </script>
+            """)
+    int insertBatchIgnoreDuplicate(@Param("list") List<DeviceData> list);
 
     /**
      * 查询指定设备最近 N 条数据（大屏实时曲线用）。

@@ -43,10 +43,12 @@ CREATE TABLE IF NOT EXISTS device_data (
     voltage          DECIMAL(10, 2) DEFAULT NULL COMMENT '电压 V',
     electric_current DECIMAL(10, 2) DEFAULT NULL COMMENT '电流 A（避开 MySQL 关键字）',
     power            DECIMAL(10, 2) DEFAULT NULL COMMENT '功率 W',
-    collect_time     DATETIME       NOT NULL COMMENT '设备侧采集时间',
+    collect_time     DATETIME(3)    NOT NULL COMMENT '设备侧采集时间（毫秒精度）',
     created_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '服务端入库时间',
     PRIMARY KEY (id),
-    KEY idx_device_time (device_id, collect_time)
+    -- 唯一索引而非普通索引：既是查询走 range 扫描的基础，
+    -- 也是消费端幂等的依据（重复消费时 INSERT ... ON DUPLICATE KEY UPDATE 会命中它）
+    UNIQUE KEY uk_device_time (device_id, collect_time)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='设备上报数据表';
 
