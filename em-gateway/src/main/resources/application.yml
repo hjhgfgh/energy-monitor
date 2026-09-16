@@ -28,16 +28,25 @@ spring:
           uri: lb://em-data-process
           predicates:
             - Path=/api/realtime/**
+        - id: route-websocket
+          # ws:// 前缀让 Gateway 把该路由当作 WebSocket 转发（HTTP 握手升级为 WS 长连接）
+          uri: lb:ws://em-data-process
+          predicates:
+            - Path=/ws/**
 
 energy:
   jwt:
     # HS256 要求密钥不少于 256 位（32 字节），否则签发时会抛 WeakKeyException
     secret: energyMonitorJwtSecretKeyForHmacSha256Algorithm2026
     expire-minutes: 120
-    # 无需鉴权的路径（登录接口本身不能被鉴权挡住）
+    # 无需鉴权的路径（登录接口本身不能被鉴权挡住；/ 与 /index.html 是大屏静态页）
     white-list:
       - /api/auth/login
       - /actuator/**
+      - /
+      - /index.html
+      - /assets/**
+      - /favicon.ico
 
 management:
   endpoints:

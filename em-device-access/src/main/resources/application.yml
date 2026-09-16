@@ -41,6 +41,10 @@ energy:
     max-frame-length: 1024
     reader-idle-timeout-seconds: 90
     backlog: 128
+  processor:
+    # 必须显式设为 kafka：缺省（matchIfMissing）会装配 LoggingDeviceDataProcessor，
+    # 只打日志不投递——P3 拆分时漏掉这行，曾导致数据全断的静默回归
+    mode: kafka
 
 management:
   endpoints:

@@ -1,0 +1,15 @@
+# docker profile：容器网络内用服务名替代 127.0.0.1（DNS 由 Compose 内置网络提供）
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: nacos:8848
+  kafka:
+    bootstrap-servers: kafka:9092
+  data:
+    redis:
+      host: redis
+
+energy:
+  netty:
+    port: 9000

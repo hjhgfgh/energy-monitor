@@ -55,8 +55,13 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
+        // 浏览器 WebSocket 握手无法自定义请求头（new WebSocket(url) 没有 header 参数），
+        // 因此 WS 场景约定用 ?token= 查询参数携带令牌；HTTP 场景仍走 Authorization 头
         String token = JwtTokenProvider.resolveToken(
                 exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION));
+        if (token == null) {
+            token = exchange.getRequest().getQueryParams().getFirst("token");
+        }
         if (token == null) {
             return reject(exchange, "缺少认证令牌，请先登录");
         }

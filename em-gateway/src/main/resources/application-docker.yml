@@ -1,0 +1,6 @@
+# docker profile：容器网络内用服务名替代 127.0.0.1
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: nacos:8848

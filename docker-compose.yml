@@ -1,0 +1,147 @@
+# 智慧能源监控系统 —— 一键编排
+#
+#   docker compose up -d          # 启动全部
+#   docker compose up -d mysql redis kafka nacos   # 只起中间件
+#   docker compose logs -f em-gateway
+#
+# 设计说明：
+# - Kafka 4.x 用 KRaft 模式，无 ZooKeeper，单节点即可演示
+# - Nacos 同样用 MySQL 外置存储（与 P3 本机验证的形态一致）
+# - 业务服务不对外暴露端口（只暴露网关 8090），保护 X-User-* 透传头不被伪造 ——
+#   这是 JWT 网关鉴权方案的安全前提，见 docs/P3-验收报告.md 第 3 节
+# - 中间件端口映射到宿主仅为本机调试方便，生产内网部署应去掉
+
+services:
+
+  # ---------------- 中间件 ----------------
+  mysql:
+    image: mysql:8.0
+    container_name: em-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动自动建库：01 建库 / 02 业务表 / 03 Nacos 表（按文件名序执行）
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: em-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  kafka:
+    image: bitnami/kafka:3.9
+    container_name: em-kafka
+    environment:
+      # KRaft 单节点：同时扮演 controller 与 broker
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  nacos:
+    image: nacos/nacos-server:v3.0.3
+    container_name: em-nacos
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: "3306"
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: "123456"
+      # 3.x 强制要求身份标识与 >=32 字节 token secret（与 P3 本机配置一致）
+      NACOS_AUTH_IDENTITY_KEY: energyServerIdentity
+      NACOS_AUTH_IDENTITY_VALUE: energyMonitorIdentityValue2026
+      NACOS_AUTH_TOKEN: "energyMonitorNacosSecretKey0123456789abcdefghijklmnopqrstuvwxyz"
+      NACOS_AUTH_ENABLE: "true"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8848/nacos/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # ---------------- 业务服务 ----------------
+  # build 段默认被注释：CI/首次构建镜像时取消注释。日常开发建议本机 mvn package
+  # 后用 compose 只编排运行时。
+
+  em-device-access:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: em-device-access } }
+    image: energy/device-access:1.0
+    container_name: em-device-access
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      nacos: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    ports:
+      - "9000:9000"    # 设备 TCP 接入必须对外（设备在网关之外）
+    # 注意：8081 管理端口不映射 —— 业务服务端口不暴露是 JWT 透传头安全的前提
+
+  em-data-process:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: em-data-process } }
+    image: energy/data-process:1.0
+    container_name: em-data-process
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      nacos: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mysql: { condition: service_healthy }
+
+  em-web-api:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: em-web-api } }
+    image: energy/web-api:1.0
+    container_name: em-web-api
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      nacos: { condition: service_healthy }
+      mysql: { condition: service_healthy }
+
+  em-gateway:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: em-gateway } }
+    image: energy/gateway:1.0
+    container_name: em-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      nacos: { condition: service_healthy }
+    ports:
+      - "8090:8090"    # 唯一对外入口：REST + WebSocket + 静态大屏
+
+volumes:
+  mysql-data:
+  kafka-data:
