@@ -40,8 +40,10 @@ COPY --from=build /build/${SERVICE}/target/${SERVICE}-1.0.0-SNAPSHOT.jar app.jar
 
 ENV TZ=Asia/Shanghai JAVA_OPTS="-Xms256m -Xmx512m"
 
-# 容器内清掉宿主可能注入的 SERVER__PORT，防止 relaxed binding 把端口解析错
-ENV SERVER__PORT="" SERVER__HOST=""
+# 注意：不要在这里设置 SERVER__PORT="" 之类的"防护"空值 ——
+# 空字符串环境变量经 Spring relaxed binding 会以更高优先级覆盖
+# application.yml 的 server.port，空值再回退成默认 8080，
+# 导致所有服务都在 8080 监听（实测踩坑）。容器内本就没有宿主的污染变量。
 
 EXPOSE 8080
 

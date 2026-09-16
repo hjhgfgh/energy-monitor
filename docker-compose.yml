@@ -25,7 +25,9 @@ services:
       # 首次启动自动建库：01 建库 / 02 业务表 / 03 Nacos 表（按文件名序执行）
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     ports:
-      - "3306:3306"
+      # 容器 MySQL 不占用宿主 3306：本机开发态的 MySQL 服务也在用该端口。
+      # 容器网络内服务都走服务名 mysql:3306，宿主调试用 33061。
+      - "33061:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-uroot", "-p123456"]
       interval: 5s
@@ -36,7 +38,8 @@ services:
     image: redis:7-alpine
     container_name: em-redis
     ports:
-      - "6379:6379"
+      # 同理错开本机 Redis（6379）
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -55,6 +58,7 @@ services:
       KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # topic 由 kafka-init 一次性服务显式创建（auto-create 关闭是生产惯例）
       KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
     volumes:
       - kafka-data:/bitnami/kafka
@@ -63,6 +67,20 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+
+  # 一次性初始化容器：broker 就绪后创建业务 topic（初始容器模式）
+  kafka-init:
+    image: bitnami/kafka:3.9
+    container_name: em-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic device-data --partitions 3 --replication-factor 1
+        echo "topic device-data ready"
 
   nacos:
     image: nacos/nacos-server:v3.0.3
@@ -75,11 +93,15 @@ services:
       MYSQL_SERVICE_DB_NAME: nacos_config
       MYSQL_SERVICE_USER: root
       MYSQL_SERVICE_PASSWORD: "123456"
+      # 注意：root@% 已在 04-auth.sql 切为 mysql_native_password ——
+      # v3 镜像默认 JDBC URL 不带 allowPublicKeyRetrieval，caching_sha2_password 下会连库失败（实测踩坑）
       # 3.x 强制要求身份标识与 >=32 字节 token secret（与 P3 本机配置一致）
       NACOS_AUTH_IDENTITY_KEY: energyServerIdentity
       NACOS_AUTH_IDENTITY_VALUE: energyMonitorIdentityValue2026
       NACOS_AUTH_TOKEN: "energyMonitorNacosSecretKey0123456789abcdefghijklmnopqrstuvwxyz"
-      NACOS_AUTH_ENABLE: "true"
+      # 与 P3 本机验证形态保持一致：identity/token 必配（v3 强制），但 client 鉴权关闭。
+      # 开启后客户端必须带 nacos 用户名密码，且全新库需要先初始化 admin 用户（v3 无默认账号）
+      NACOS_AUTH_ENABLE: "false"
     depends_on:
       mysql:
         condition: service_healthy
@@ -104,7 +126,8 @@ services:
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       nacos: { condition: service_healthy }
-      kafka: { condition: service_healthy }
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "9000:9000"    # 设备 TCP 接入必须对外（设备在网关之外）
     # 注意：8081 管理端口不映射 —— 业务服务端口不暴露是 JWT 透传头安全的前提
@@ -117,7 +140,8 @@ services:
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       nacos: { condition: service_healthy }
-      kafka: { condition: service_healthy }
+      kafka-init:
+        condition: service_completed_successfully
       redis: { condition: service_healthy }
       mysql: { condition: service_healthy }
 

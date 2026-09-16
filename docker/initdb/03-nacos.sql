@@ -1,3 +1,5 @@
+USE nacos_config;
+
 /*
  * Copyright 1999-2018 Alibaba Group Holding Ltd.
  *

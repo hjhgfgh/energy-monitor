@@ -2,7 +2,11 @@
 -- 智慧能源监控系统 数据库初始化脚本
 -- MySQL 8.0
 -- 执行方式: mysql -uroot -p --default-character-set=utf8mb4 -e "SOURCE docs/schema.sql"
+-- Docker initdb 挂载执行时客户端默认字符集不可控（实测中文变乱码），
+-- SET NAMES 强制本会话按 utf8mb4 解释后续字节流，两种执行方式都正确
 -- ============================================================
+
+SET NAMES utf8mb4;
 
 CREATE DATABASE IF NOT EXISTS energy_monitor
     DEFAULT CHARACTER SET utf8mb4
