@@ -20,9 +20,57 @@
             <artifactId>netty-codec</artifactId>
         </dependency>
 
+        <!--
+          entity 与 mapper 位于本模块并被多个服务共享，需要 MyBatis-Plus 的注解与 BaseMapper。
+          必须标 optional：否则会向 em-device-access 这类不需要数据库的服务传递 starter，
+          触发 DataSource 自动配置并导致启动失败。
+        -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+          JWT 签发与校验放在本模块共享（网关负责校验、业务服务负责签发）。
+          同样标 optional：不需要 JWT 的服务不必被动引入。
+          jjwt 三构件缺一不可——只引 api 会在运行时抛
+          NoClassDefFoundError: io/jsonwebtoken/impl/DefaultJwtBuilder
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+          DeviceLatestCache 被读写两端共用（data-process 写、web-api 读），放在本模块共享。
+          同样 optional，避免不需要 Redis 的服务被动引入。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
             <optional>true</optional>
         </dependency>
 

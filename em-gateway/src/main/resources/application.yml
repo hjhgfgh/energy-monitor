@@ -1,0 +1,52 @@
+server:
+  # 不用 8000：本机上已有其他项目（uvicorn backend.app）占用该端口，
+  # 且它以 Bound 状态存在，用 Get-NetTCPConnection -State Listen 查不出来，
+  # 排查时容易误判为「端口空闲却报占用」。
+  port: 8090
+
+spring:
+  application:
+    name: em-gateway
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    gateway:
+      # 显式声明路由而非开启自动路由：
+      # 自动路由会把所有注册上来的服务都暴露出去，等于把内网拓扑透传到外部
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        - id: route-web-api
+          uri: lb://em-web-api
+          predicates:
+            # /api/auth/** 必须在路由里，否则登录接口会 404（白名单只解决「不鉴权」，不解决「不转发」）
+            - Path=/api/auth/**,/api/devices/**,/api/alarms/**
+        - id: route-data-process
+          uri: lb://em-data-process
+          predicates:
+            - Path=/api/realtime/**
+
+energy:
+  jwt:
+    # HS256 要求密钥不少于 256 位（32 字节），否则签发时会抛 WeakKeyException
+    secret: energyMonitorJwtSecretKeyForHmacSha256Algorithm2026
+    expire-minutes: 120
+    # 无需鉴权的路径（登录接口本身不能被鉴权挡住）
+    white-list:
+      - /api/auth/login
+      - /actuator/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    root: INFO
+    com.energy: INFO
+    org.springframework.cloud.gateway: INFO

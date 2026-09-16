@@ -21,7 +21,10 @@
 
     <modules>
         <module>em-common</module>
-        <module>em-server</module>
+        <module>em-gateway</module>
+        <module>em-device-access</module>
+        <module>em-data-process</module>
+        <module>em-web-api</module>
         <module>em-simulator</module>
     </modules>
 
@@ -33,6 +36,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
+        <jjwt.version>0.12.7</jjwt.version>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
     </properties>
