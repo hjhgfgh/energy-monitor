@@ -22,3 +22,6 @@ logs/
 
 # frontend
 em-frontend/node_modules/
+
+# frontend build output (构建产物，gateway 运行所需副本在 em-gateway/resources/static)
+em-frontend/dist/
